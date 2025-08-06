@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Testador de RegEx</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <h1>Testador de Expressões Regulares</h1>
+  <div class="container">
+    <div class="panel">
+      <label for="pattern">Expressão (RegEx):</label>
+      <input id="pattern" type="text" placeholder="ex: ^\\d{2,4}-\\d{2}-\\d{2}">
+      
+      <label for="sample">Texto de teste:</label>
+      <textarea id="sample" rows="6" placeholder="Digite seu texto aqui..."></textarea>
+    </div>
+    <div class="panel">
+      <label>Resultado:</label>
+      <pre id="output"></pre>
+    </div>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html>

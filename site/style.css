@@ -1,0 +1,36 @@
+body {
+    font-family: sans-serif;
+    margin: 20px;
+    background: #f0f0f5;
+  }
+  h1 {
+    text-align: center;
+  }
+  .container {
+    display: flex;
+    gap: 20px;
+  }
+  .panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  label {
+    margin-top: 10px;
+    font-weight: bold;
+  }
+  input, textarea {
+    margin-top: 5px;
+    padding: 8px;
+    font-size: 1em;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  #output {
+    background: #fff;
+    border: 1px solid #ccc;
+    padding: 10px;
+    min-height: 200px;
+    white-space: pre-wrap;
+  }
+  
