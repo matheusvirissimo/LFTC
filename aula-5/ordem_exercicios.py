@@ -10,3 +10,9 @@ k = itens[2::3]  # itens nas posições 2, 5, 8, ...
 print("p: L", p)
 print("m: L", m)
 print("k: L", k)
+
+"""
+p: L [1, 4, 7]
+m: L [2, 5, 8]
+k: L [3, 6]
+"""
