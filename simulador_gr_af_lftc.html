@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Simulador GR & AF</title>
+  <style>
+    body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial; margin:0; padding:0; background:#f4f6f8}
+    header{background:#0b5cff;color:white;padding:12px 18px}
+    .container{display:flex;gap:12px;padding:16px}
+    .panel{background:white;border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,0.08);padding:12px;flex:1;min-height:420px}
+    textarea{width:100%;height:160px;font-family:monospace;padding:8px}
+    label{font-weight:600;font-size:14px}
+    .row{display:flex;gap:8px;align-items:center;margin-top:8px}
+    button{padding:8px 12px;border-radius:6px;border:0;background:#0b5cff;color:white;cursor:pointer}
+    input[type=text]{padding:6px;border-radius:6px;border:1px solid #cbd5e1}
+    select{padding:6px;border-radius:6px}
+    #af-canvas{height:540px;border:1px dashed #cbd5e1;border-radius:6px;position:relative;overflow:visible;background:linear-gradient(90deg,rgba(0,0,0,0.03) 1px,transparent 1px),linear-gradient(0deg,rgba(0,0,0,0.03) 1px,transparent 1px);background-size:20px 20px}
+    .state{position:absolute;padding:10px 14px;border-radius:50%;background:#fff;border:2px solid #2b6cb0;cursor:move;box-shadow:0 2px 6px rgba(43,108,176,0.15);text-align:center;width:40px;height:40px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:bold;}
+    .controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+    .small{padding:6px 8px;font-size:13px}
+    pre{background:#0f1724;color:#e6edf3;padding:10px;border-radius:6px;overflow:auto}
+    
+    /* Estilos para as conexões do jsPlumb */
+    .jtk-connector { z-index: 4; }
+    .jtk-overlay { z-index: 5; }
+    .jtk-endpoint { z-index: 6; }
+    .state { z-index: 10; }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jsPlumb/2.15.6/js/jsplumb.min.js"></script>
+</head>
+<body>
+  <header>
+    <strong>Simulador GR & AF</strong>
+  </header>
+
+  <div class="container">
+    <div class="panel" style="flex:0.6">
+      <h3>Simulador de Gramáticas Regulares (GR)</h3>
+      <label>Regras:</label>
+      <textarea id="grammar" placeholder="S -> a A | b&#10;A -> a S | eps"></textarea>
+      <div class="row">
+        <label>String:</label>
+        <input type="text" id="test-string" placeholder="aba" />
+        <button id="test-btn" class="small">Testar</button>
+      </div>
+      <pre id="result">—</pre>
+    </div>
+
+    <div class="panel" style="flex:1.4">
+      <h3>Editor de Autômatos (AF)</h3>
+      <div class="controls">
+        <button id="add-state" class="small">Adicionar estado</button>
+        <button id="set-start" class="small">Marcar Start</button>
+        <button id="toggle-final" class="small">Toggle Final</button>
+        <button id="connect-mode" class="small">Conectar</button>
+        <button id="simulate" class="small">Simular</button>
+        <button id="clear-all" class="small">Limpar</button>
+      </div>
+      <div class="row">
+        <label>String:</label>
+        <input type="text" id="af-string" placeholder="aba" />
+      </div>
+      <pre id="af-result">—</pre>
+      <div id="af-canvas"></div>
+    </div>
+  </div>
+
+<script>
+// ========== Simulador GR ==========
+function parseGrammar(text) {
+  const prods = {};
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  for (let line of lines) {
+    const [left, right] = line.split('->').map(x => x.trim());
+    if (!prods[left]) prods[left] = [];
+    right.split('|').forEach(r => prods[left].push(r.trim() === 'eps' ? '' : r.trim()));
+  }
+  return prods;
+}
+
+function accepts(grammar, str) {
+  const start = Object.keys(grammar)[0];
+  function dfs(sym, idx) {
+    if (idx === str.length && (grammar[sym]||[]).includes('')) return true;
+    for (let rule of grammar[sym]||[]) {
+      if (rule === '') continue;
+      const [a, B] = [rule[0], rule.slice(1).trim()];
+      if (str[idx] === a) {
+        if (B === '' && idx+1 === str.length) return true;
+        if (B && dfs(B, idx+1)) return true;
+      }
+    }
+    return false;
+  }
+  return dfs(start,0);
+}
+
+document.getElementById('test-btn').onclick = () => {
+  const g = parseGrammar(document.getElementById('grammar').value);
+  const w = document.getElementById('test-string').value;
+  const res = accepts(g,w);
+  document.getElementById('result').textContent = res ? 'ACEITA' : 'REJEITA';
+};
+
+// ========== AF Editor ==========
+jsPlumb.ready(() => {
+  const instance = jsPlumb.getInstance({
+    Connector: ["Bezier", { curviness: 30 }],
+    Endpoint: ["Dot", { radius: 4 }],
+    PaintStyle: { stroke: "#2b6cb0", strokeWidth: 2 },
+    HoverPaintStyle: { stroke: "#0b5cff", strokeWidth: 3 },
+    ConnectionOverlays: [
+      ["Arrow", { 
+        location: 1, 
+        width: 10, 
+        length: 10, 
+        foldback: 0.8 
+      }]
+    ],
+    Container: "af-canvas"
+  });
+
+  const canvas = document.getElementById('af-canvas');
+  let stateCounter = 0;
+  let mode = null;
+  let startState = null;
+  const finals = new Set();
+  let selected = null;
+  const transitions = {}; // {from: {symbol: to}}
+
+  function addState(x = 50, y = 50) {
+    const id = 'q' + (stateCounter++);
+    const div = document.createElement('div');
+    div.className = 'state';
+    div.id = id;
+    div.textContent = id;
+    div.style.left = x + 'px';
+    div.style.top = y + 'px';
+    canvas.appendChild(div);
+
+    // Configurar como draggable
+    instance.draggable(div, {
+      containment: true
+    });
+
+    // Configurar endpoints
+    instance.makeSource(div, {
+      filter: ".state",
+      anchor: "Continuous",
+      connectorStyle: { stroke: "#2b6cb0", strokeWidth: 2 },
+      connectionType: "basic",
+      extract: {
+        "action": "the-action"
+      }
+    });
+
+    instance.makeTarget(div, {
+      dropOptions: { hoverClass: "dragHover" },
+      anchor: "Continuous",
+      allowLoopback: true
+    });
+
+    div.onclick = (e) => {
+      e.stopPropagation();
+      
+      if (mode === 'start') {
+        if (startState) {
+          document.getElementById(startState).style.outline = '';
+        }
+        startState = id;
+        div.style.outline = '3px solid #0b5cff';
+        mode = null;
+        
+      } else if (mode === 'final') {
+        if (finals.has(id)) {
+          finals.delete(id);
+          div.style.border = '2px solid #2b6cb0';
+        } else {
+          finals.add(id);
+          div.style.border = '4px double #1f7a1f';
+        }
+        mode = null;
+        
+      } else if (mode === 'connect') {
+        if (!selected) {
+          selected = id;
+          div.style.boxShadow = '0 0 0 4px rgba(11,92,255,0.3)';
+        } else if (selected !== id) {
+          const label = prompt('Símbolo da transição:', 'a');
+          if (label && label.trim()) {
+            const connection = instance.connect({
+              source: selected,
+              target: id,
+              overlays: [
+                ["Arrow", { 
+                  location: 1, 
+                  width: 10, 
+                  length: 10 
+                }],
+                ["Label", { 
+                  label: label.trim(), 
+                  id: "label",
+                  cssClass: "connection-label"
+                }]
+              ]
+            });
+
+            if (!transitions[selected]) transitions[selected] = {};
+            transitions[selected][label.trim()] = id;
+          }
+          
+          document.getElementById(selected).style.boxShadow = '';
+          selected = null;
+          mode = null;
+        }
+      }
+    };
+
+    return div;
+  }
+
+  // Event listeners
+  document.getElementById('add-state').onclick = () => {
+    const x = 60 + (stateCounter % 8) * 80;
+    const y = 60 + Math.floor(stateCounter / 8) * 80;
+    addState(x, y);
+  };
+
+  document.getElementById('set-start').onclick = () => {
+    mode = mode === 'start' ? null : 'start';
+    document.getElementById('set-start').style.background = mode === 'start' ? '#ff6b35' : '#0b5cff';
+  };
+
+  document.getElementById('toggle-final').onclick = () => {
+    mode = mode === 'final' ? null : 'final';
+    document.getElementById('toggle-final').style.background = mode === 'final' ? '#ff6b35' : '#0b5cff';
+  };
+
+  document.getElementById('connect-mode').onclick = () => {
+    if (mode === 'connect') {
+      // Cancelar modo de conexão
+      mode = null;
+      document.getElementById('connect-mode').style.background = '#0b5cff';
+      document.getElementById('connect-mode').textContent = 'Conectar';
+      if (selected) {
+        document.getElementById(selected).style.boxShadow = '';
+        selected = null;
+      }
+    } else {
+      // Ativar modo de conexão
+      mode = 'connect';
+      document.getElementById('connect-mode').style.background = '#ff6b35';
+      document.getElementById('connect-mode').textContent = 'Cancelar';
+      // Limpar outros modos
+      document.getElementById('set-start').style.background = '#0b5cff';
+      document.getElementById('toggle-final').style.background = '#0b5cff';
+    }
+  };
+
+  document.getElementById('clear-all').onclick = () => {
+    instance.deleteEveryConnection();
+    canvas.innerHTML = '';
+    stateCounter = 0;
+    startState = null;
+    finals.clear();
+    for (let k in transitions) delete transitions[k];
+    mode = null;
+    selected = null;
+    
+    // Reset button styles
+    document.getElementById('set-start').style.background = '#0b5cff';
+    document.getElementById('toggle-final').style.background = '#0b5cff';
+    document.getElementById('connect-mode').style.background = '#0b5cff';
+  };
+
+  document.getElementById('simulate').onclick = () => {
+    const input = document.getElementById('af-string').value;
+    if (!startState) {
+      document.getElementById('af-result').textContent = 'Defina um estado inicial!';
+      return;
+    }
+    
+    let current = startState;
+    let ok = true;
+    let path = [current];
+    
+    for (let ch of input) {
+      if (transitions[current] && transitions[current][ch]) {
+        current = transitions[current][ch];
+        path.push(current);
+      } else {
+        ok = false;
+        break;
+      }
+    }
+    
+    const res = ok && finals.has(current);
+    const pathStr = path.join(' → ');
+    document.getElementById('af-result').textContent = 
+      `${res ? 'ACEITA' : 'REJEITA'}\nCaminho: ${pathStr}`;
+  };
+
+  // Adicionar estados iniciais de exemplo
+  const state1 = addState(100, 150);
+  const state2 = addState(300, 150);
+  
+  // Marcar o primeiro como inicial
+  startState = state1.id;
+  state1.style.outline = '3px solid #0b5cff';
+});
+</script>
+</body>
+</html>
