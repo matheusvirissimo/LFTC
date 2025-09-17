@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Simulador - GR & AF</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jsPlumb/2.15.6/js/jsplumb.min.js"></script>
+</head>
+<body>
+  <header>
+    <strong>Simulador de Gramática Regular (GR) & Autômatos Finitos (AF)</strong>
+  </header>
+
+  <div class="container">
+    <div class="panel" style="flex:0.6">
+      <h3>Simulador de Gramáticas Regulares (GR)</h3>
+      <label>Regras:</label>
+      <textarea id="grammar" placeholder="S -> a A | b&#10;A -> a S | eps"></textarea>
+      <div class="row">
+        <label>String:</label>
+        <input type="text" id="test-string" placeholder="aba" />
+        <button id="test-btn" class="small">Testar</button>
+      </div>
+      <pre id="result">—</pre>
+    </div>
+
+    <div class="panel" style="flex:1.4">
+      <h3>Editor de Autômatos Finitos (AF)</h3>
+      <div class="controls">
+        <button id="add-state" class="small">Adicionar estado</button>
+        <button id="set-start" class="small">Marcar estado inicial</button>
+        <button id="toggle-final" class="small">Marcar estado(s) final(is)</button>
+        <button id="connect-mode" class="small">Conectar estados</button>
+        <button id="simulate" class="small">Simular</button>
+        <button id="clear-all" class="small">Limpar</button>
+      </div>
+      <div class="row">
+        <label>String:</label>
+        <input type="text" id="af-string" placeholder="aba" />
+      </div>
+      <pre id="af-result">—</pre>
+      <div id="af-canvas"></div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jsPlumb/2.15.6/js/jsplumb.min.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
