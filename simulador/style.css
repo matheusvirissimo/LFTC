@@ -10,12 +10,14 @@ header {
     background: #0b5cff;
     color: white;
     padding: 12px 18px;
+    text-align: center;
 }
 
 .container {
     display: flex;
     gap: 12px;
     padding: 16px;
+    min-height: calc(100vh - 80px);
 }
 
 .panel {
@@ -32,11 +34,16 @@ textarea {
     height: 160px;
     font-family: monospace;
     padding: 8px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    resize: vertical;
 }
 
 label {
     font-weight: 600;
     font-size: 14px;
+    display: block;
+    margin-bottom: 4px;
 }
 
 .row {
@@ -53,17 +60,32 @@ button {
     background: #0b5cff;
     color: white;
     cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+button:hover {
+    background: #0950e6;
+}
+
+button.active {
+    background: #ff6b35;
+}
+
+button.active:hover {
+    background: #e55a2b;
 }
 
 input[type=text] {
     padding: 6px;
     border-radius: 6px;
     border: 1px solid #cbd5e1;
+    flex: 1;
 }
 
 select {
     padding: 6px;
     border-radius: 6px;
+    border: 1px solid #cbd5e1;
 }
 
 #af-canvas {
@@ -75,11 +97,12 @@ select {
     background: linear-gradient(90deg,rgba(0,0,0,0.03) 1px,transparent 1px),
                 linear-gradient(0deg,rgba(0,0,0,0.03) 1px,transparent 1px);
     background-size: 20px 20px;
+    margin-top: 12px;
 }
 
 .state {
     position: absolute;
-    padding: 10px 14px;
+    padding: 0;
     border-radius: 50%;
     background: #fff;
     border: 2px solid #2b6cb0;
@@ -93,18 +116,74 @@ select {
     justify-content: center;
     font-size: 12px;
     font-weight: bold;
+    transition: all 0.3s ease;
+    user-select: none;
+    z-index: 10;
+}
+
+.state:hover {
+    box-shadow: 0 4px 12px rgba(43,108,176,0.25);
+    transform: scale(1.05);
+}
+
+/* Estado inicial - com triângulo indicador */
+.state.initial {
+    background: linear-gradient(135deg, #e6f2ff 0%, #cce7ff 100%);
+    border: 3px solid #0b5cff;
+    position: relative;
+}
+
+.state.initial::before {
+    content: '';
+    position: absolute;
+    left: -15px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 0;
+    height: 0;
+    border-top: 8px solid transparent;
+    border-bottom: 8px solid transparent;
+    border-left: 12px solid #0b5cff;
+    z-index: 11;
+}
+
+/* Estado final - com borda dupla vermelha */
+.state.final {
+    background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+    border: 4px double #dc2626;
+    color: #dc2626;
+}
+
+/* Estado inicial E final - combinação dos dois estilos */
+.state.initial.final {
+    background: linear-gradient(135deg, #fef3c7 0%, #fed7aa 100%);
+    border: 4px double #d97706;
+    color: #d97706;
+}
+
+.state.initial.final::before {
+    border-left-color: #d97706;
+}
+
+/* Estado selecionado */
+.state.selected {
+    box-shadow: 0 0 0 4px rgba(255, 107, 53, 0.5);
+    border-color: #ff6b35;
 }
 
 .controls {
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
-    margin-bottom: 6px;
+    margin-bottom: 12px;
+    align-items: center;
 }
 
 .small {
     padding: 6px 8px;
     font-size: 13px;
+    min-width: 120px;
+    text-align: center;
 }
 
 pre {
@@ -113,6 +192,13 @@ pre {
     padding: 10px;
     border-radius: 6px;
     overflow: auto;
+    margin-top: 8px;
+    min-height: 50px;
+}
+
+h3 {
+    margin-top: 0;
+    color: #1e293b;
 }
 
 /* Estilos para as conexões do jsPlumb */
@@ -122,12 +208,122 @@ pre {
 
 .jtk-overlay {
     z-index: 5;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: bold;
+    font-size: 11px;
+    border: 1px solid #cbd5e1;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 
 .jtk-endpoint {
     z-index: 6;
 }
 
-.state {
-    z-index: 10;
+/* Estilos para labels das conexões */
+.connection-label {
+    background: white !important;
+    border: 1px solid #2b6cb0 !important;
+    border-radius: 4px !important;
+    padding: 2px 6px !important;
+    font-size: 11px !important;
+    font-weight: bold !important;
+    color: #2b6cb0 !important;
+}
+
+/* Hover effects para conexões */
+.jtk-connector:hover {
+    stroke: #0b5cff !important;
+    stroke-width: 3px !important;
+}
+
+/* Status indicator */
+.mode-indicator {
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    margin: 8px 0;
+    background: #e2e8f0;
+    color: #475569;
+    text-align: center;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.mode-indicator.active {
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #fbbf24;
+}
+
+/* Responsividade */
+@media (max-width: 768px) {
+    .container {
+        flex-direction: column;
+        padding: 8px;
+    }
+    
+    #af-canvas {
+        height: 400px;
+    }
+    
+    .state {
+        width: 35px;
+        height: 35px;
+        font-size: 11px;
+    }
+    
+    .state.initial::before {
+        left: -12px;
+        border-top: 6px solid transparent;
+        border-bottom: 6px solid transparent;
+        border-left: 10px solid #0b5cff;
+    }
+    
+    .state.initial.final::before {
+        border-left-color: #d97706;
+    }
+}
+
+@media (max-width: 480px) {
+    #af-canvas {
+        height: 300px;
+    }
+    
+    .state {
+        width: 30px;
+        height: 30px;
+        font-size: 10px;
+    }
+    
+    .state.initial::before {
+        left: -10px;
+        border-top: 5px solid transparent;
+        border-bottom: 5px solid transparent;
+        border-left: 8px solid #0b5cff;
+    }
+    
+    .state.initial.final::before {
+        border-left-color: #d97706;
+    }
+    
+    textarea {
+        height: 120px;
+    }
+    
+    .panel {
+        padding: 8px;
+    }
+    
+    .controls {
+        flex-direction: column;
+        gap: 4px;
+    }
+    
+    .small {
+        width: 100%;
+        text-align: center;
+    }
 }
