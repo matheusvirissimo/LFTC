@@ -49,7 +49,30 @@ jsPlumb.ready(() => {
         foldback: 0.8 
       }]
     ],
-    Container: "af-canvas"
+    Container: "af-canvas",
+    // Configurações de performance otimizadas
+    ReattachConnections: true,
+    MaxConnections: -1,
+    DragOptions: {
+      cursor: 'move',
+      zIndex: 2000,
+      containment: true,
+      grid: [1, 1], // Movimento suave pixel por pixel
+      start: function(params) {
+        params.drag.style.transition = 'none';
+      },
+      stop: function(params) {
+        params.drag.style.transition = '';
+      }
+    },
+    // Otimizações de rendering
+    RepaintEverythingThrottleTimeout: 8, // 120fps para movimento mais suave
+    BeforeDetach: function(connection) {
+      return true;
+    },
+    BeforeDrop: function(params) {
+      return true;
+    }
   });
 
   const canvas = document.getElementById('af-canvas');
@@ -59,6 +82,10 @@ jsPlumb.ready(() => {
   const finals = new Set();
   let selected = null;
   const transitions = {}; // {from: {symbol: to}}
+
+  // Variáveis para otimização de performance
+  let repaintTimeout = null;
+  let isDragging = false;
 
   // Função para limpar todos os modos ativos
   function clearAllModes() {
@@ -141,36 +168,68 @@ jsPlumb.ready(() => {
     }
   }
 
+  // Função otimizada para repaint com throttling
+  function throttledRepaint() {
+    if (repaintTimeout) return;
+    repaintTimeout = requestAnimationFrame(() => {
+      instance.repaintEverything();
+      repaintTimeout = null;
+    });
+  }
+
+  // Função para repaint em tempo real durante o drag
+  function realTimeRepaint(element) {
+    instance.repaint(element);
+  }
+
   // Função para reinicializar jsPlumb para um elemento
   function reinitializeJsPlumbForElement(element) {
     // Remover configurações antigas
     instance.removeAllEndpoints(element);
     instance.detachAllConnections(element);
     
-    // Reconfigurar o elemento
-    setTimeout(() => {
-      instance.draggable(element, {
-        containment: true,
-        drag: function(event) {
-          instance.repaintEverything();
-        }
-      });
+    // Configuração otimizada para movimento natural
+    instance.draggable(element, {
+      containment: true,
+      cursor: 'move',
+      grid: [1, 1], // Movimento pixel por pixel para suavidade
+      start: function(event) {
+        isDragging = true;
+        element.style.zIndex = '1000';
+        element.style.transition = 'none'; // Remove transições CSS durante o drag
+      },
+      drag: function(event) {
+        // Repaint em tempo real das conexões
+        realTimeRepaint(element);
+      },
+      stop: function(event) {
+        isDragging = false;
+        element.style.zIndex = '';
+        element.style.transition = ''; // Restaura transições CSS
+        // Repaint final
+        throttledRepaint();
+      }
+    });
 
-      instance.makeSource(element, {
-        filter: ".state",
-        anchor: "Continuous",
-        connectorStyle: { stroke: "#2b6cb0", strokeWidth: 2 },
-        connectionType: "basic"
-      });
+    instance.makeSource(element, {
+      filter: ".state",
+      anchor: "Continuous",
+      connectorStyle: { stroke: "#2b6cb0", strokeWidth: 2 },
+      connectionType: "basic",
+      maxConnections: -1
+    });
 
-      instance.makeTarget(element, {
-        dropOptions: { hoverClass: "dragHover" },
-        anchor: "Continuous",
-        allowLoopback: true
-      });
-      
-      instance.revalidate(element);
-    }, 0);
+    instance.makeTarget(element, {
+      dropOptions: { 
+        hoverClass: "dragHover",
+        tolerance: "pointer" // Melhora a responsividade do drop
+      },
+      anchor: "Continuous",
+      allowLoopback: true,
+      maxConnections: -1
+    });
+    
+    instance.revalidate(element);
   }
 
   // Função para apagar um estado
@@ -214,10 +273,8 @@ jsPlumb.ready(() => {
     // Remover o elemento do DOM por último
     element.remove();
 
-    // Forçar repaint do jsPlumb
-    setTimeout(() => {
-      instance.repaintEverything();
-    }, 100);
+    // Repaint otimizado sem delay
+    throttledRepaint();
   }
 
   function addState(x = 50, y = 50) {
@@ -230,34 +287,51 @@ jsPlumb.ready(() => {
     div.style.top = y + 'px';
     canvas.appendChild(div);
 
-    // Aguardar o elemento ser inserido no DOM antes de configurar jsPlumb
-    setTimeout(() => {
-      // Configurar como draggable
-      instance.draggable(div, {
-        containment: true,
-        drag: function(event) {
-          // Callback durante o arraste para manter conexões
-          instance.repaintEverything();
-        }
-      });
+    // Configuração otimizada para movimento natural
+    // Configurar como draggable
+    instance.draggable(div, {
+      containment: true,
+      cursor: 'move',
+      grid: [1, 1], // Movimento pixel por pixel para suavidade
+      start: function(event) {
+        isDragging = true;
+        div.style.zIndex = '1000';
+        div.style.transition = 'none'; // Remove transições CSS durante o drag
+      },
+      drag: function(event) {
+        // Repaint em tempo real das conexões
+        realTimeRepaint(div);
+      },
+      stop: function(event) {
+        isDragging = false;
+        div.style.zIndex = '';
+        div.style.transition = ''; // Restaura transições CSS
+        // Repaint final
+        throttledRepaint();
+      }
+    });
 
-      // Configurar endpoints com melhor estilo
-      instance.makeSource(div, {
-        filter: ".state",
-        anchor: "Continuous",
-        connectorStyle: { stroke: "#2b6cb0", strokeWidth: 2 },
-        connectionType: "basic"
-      });
+    // Configurar endpoints com melhor estilo e performance
+    instance.makeSource(div, {
+      filter: ".state",
+      anchor: "Continuous",
+      connectorStyle: { stroke: "#2b6cb0", strokeWidth: 2 },
+      connectionType: "basic",
+      maxConnections: -1
+    });
 
-      instance.makeTarget(div, {
-        dropOptions: { hoverClass: "dragHover" },
-        anchor: "Continuous",
-        allowLoopback: true
-      });
-      
-      // Forçar repaint para garantir que o elemento está posicionado corretamente
-      instance.revalidate(div);
-    }, 0);
+    instance.makeTarget(div, {
+      dropOptions: { 
+        hoverClass: "dragHover",
+        tolerance: "pointer" // Melhora a responsividade do drop
+      },
+      anchor: "Continuous",
+      allowLoopback: true,
+      maxConnections: -1
+    });
+    
+    // Revalidação imediata do elemento
+    instance.revalidate(div);
 
     div.onclick = (e) => {
       e.stopPropagation();
@@ -295,15 +369,14 @@ jsPlumb.ready(() => {
           selected = id;
           div.classList.add('selected');
           updateModeIndicator();
-        } else if (selected !== id) {
-          const label = prompt('Símbolo da transição:', 'a');
+        } else {
+          // Permitir conexão para o mesmo estado (self-loop) ou estados diferentes
+          const label = prompt('Símbolo da transição:', '');
           if (label && label.trim()) {
             // Verificar se já existe uma transição com esse símbolo do estado origem
             const symbolExists = transitions[selected] && transitions[selected][label.trim()];
             
-            if (symbolExists) {
-              alert(`Já existe uma transição com o símbolo "${label.trim()}" do estado ${selected}!`);
-            } else {
+            
               // Garantir que os elementos existem e estão posicionados
               const sourceElement = document.getElementById(selected);
               const targetElement = document.getElementById(id);
@@ -333,12 +406,10 @@ jsPlumb.ready(() => {
                 if (!transitions[selected]) transitions[selected] = {};
                 transitions[selected][label.trim()] = id;
                 
-                // Forçar repaint após criar a conexão
-                setTimeout(() => {
-                  instance.repaintEverything();
-                }, 50);
+                // Repaint otimizado após criar a conexão
+                throttledRepaint();
               }
-            }
+            
           }
           
           clearAllModes();
@@ -374,10 +445,8 @@ jsPlumb.ready(() => {
       // Adicionar estado e garantir que seja configurado corretamente
       const newState = addState(x, y);
       
-      // Forçar uma atualização do jsPlumb após adicionar o estado
-      setTimeout(() => {
-        instance.repaintEverything();
-      }, 100);
+      // Repaint otimizado sem delay
+      throttledRepaint();
     }
   };
 
@@ -450,10 +519,8 @@ jsPlumb.ready(() => {
         // Limpar modos ativos
         clearAllModes();
         
-        // Forçar um repaint completo do jsPlumb
-        setTimeout(() => {
-          instance.repaintEverything();
-        }, 100);
+        // Repaint otimizado
+        throttledRepaint();
       }
     };
   }
