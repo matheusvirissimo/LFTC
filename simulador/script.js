@@ -54,7 +54,7 @@ jsPlumb.ready(() => {
 
   const canvas = document.getElementById('af-canvas');
   let stateCounter = 0;
-  let currentMode = null; // 'add', 'start', 'final', 'connect'
+  let currentMode = null; // 'add', 'start', 'final', 'connect', 'delete'
   let startState = null;
   const finals = new Set();
   let selected = null;
@@ -66,7 +66,7 @@ jsPlumb.ready(() => {
     selected = null;
     
     // Reset visual dos botões
-    const buttons = ['add-state', 'set-start', 'toggle-final', 'connect-mode'];
+    const buttons = ['add-state', 'set-start', 'toggle-final', 'connect-mode', 'delete-state'];
     buttons.forEach(btnId => {
       const btn = document.getElementById(btnId);
       if (btn) btn.classList.remove('active');
@@ -112,6 +112,10 @@ jsPlumb.ready(() => {
         indicator.textContent = selected ? 'Selecione o estado destino' : 'Selecione o estado origem';
         indicator.classList.add('active');
         break;
+      case 'delete':
+        indicator.textContent = 'Modo: Apagar Estados - Clique nos estados para remover';
+        indicator.classList.add('active');
+        break;
       default:
         indicator.textContent = 'Clique em um botão para começar';
         indicator.classList.remove('active');
@@ -132,6 +136,76 @@ jsPlumb.ready(() => {
     }
   }
 
+  // Função para reinicializar jsPlumb para um elemento
+  function reinitializeJsPlumbForElement(element) {
+    // Remover configurações antigas
+    instance.removeAllEndpoints(element);
+    instance.detachAllConnections(element);
+    
+    // Reconfigurar o elemento
+    setTimeout(() => {
+      instance.draggable(element, {
+        containment: true,
+        drag: function(event) {
+          instance.repaintEverything();
+        }
+      });
+
+      instance.makeSource(element, {
+        filter: ".state",
+        anchor: "Continuous",
+        connectorStyle: { stroke: "#2b6cb0", strokeWidth: 2 },
+        connectionType: "basic"
+      });
+
+      instance.makeTarget(element, {
+        dropOptions: { hoverClass: "dragHover" },
+        anchor: "Continuous",
+        allowLoopback: true
+      });
+      
+      instance.revalidate(element);
+    }, 0);
+  }
+
+  // Função para apagar um estado
+  function deleteState(stateId) {
+    const element = document.getElementById(stateId);
+    if (!element) return;
+
+    // Remover todas as conexões relacionadas ao estado
+    instance.removeAllEndpoints(element);
+    instance.detachAllConnections(element);
+
+    // Remover o elemento do DOM
+    element.remove();
+
+    // Limpar das variáveis de controle
+    if (startState === stateId) {
+      startState = null;
+    }
+    finals.delete(stateId);
+
+    // Remover das transições (tanto como origem quanto como destino)
+    delete transitions[stateId];
+    Object.keys(transitions).forEach(from => {
+      Object.keys(transitions[from]).forEach(symbol => {
+        if (transitions[from][symbol] === stateId) {
+          delete transitions[from][symbol];
+        }
+      });
+      // Remover objetos vazios
+      if (Object.keys(transitions[from]).length === 0) {
+        delete transitions[from];
+      }
+    });
+
+    // Forçar repaint do jsPlumb
+    setTimeout(() => {
+      instance.repaintEverything();
+    }, 50);
+  }
+
   function addState(x = 50, y = 50) {
     const id = 'q' + (stateCounter++);
     const div = document.createElement('div');
@@ -142,28 +216,34 @@ jsPlumb.ready(() => {
     div.style.top = y + 'px';
     canvas.appendChild(div);
 
-    // Configurar como draggable
-    instance.draggable(div, {
-      containment: true,
-      drag: function(event) {
-        // Callback durante o arraste para manter conexões
-        instance.repaintEverything();
-      }
-    });
+    // Aguardar o elemento ser inserido no DOM antes de configurar jsPlumb
+    setTimeout(() => {
+      // Configurar como draggable
+      instance.draggable(div, {
+        containment: true,
+        drag: function(event) {
+          // Callback durante o arraste para manter conexões
+          instance.repaintEverything();
+        }
+      });
 
-    // Configurar endpoints com melhor estilo
-    instance.makeSource(div, {
-      filter: ".state",
-      anchor: "Continuous",
-      connectorStyle: { stroke: "#2b6cb0", strokeWidth: 2 },
-      connectionType: "basic"
-    });
+      // Configurar endpoints com melhor estilo
+      instance.makeSource(div, {
+        filter: ".state",
+        anchor: "Continuous",
+        connectorStyle: { stroke: "#2b6cb0", strokeWidth: 2 },
+        connectionType: "basic"
+      });
 
-    instance.makeTarget(div, {
-      dropOptions: { hoverClass: "dragHover" },
-      anchor: "Continuous",
-      allowLoopback: true
-    });
+      instance.makeTarget(div, {
+        dropOptions: { hoverClass: "dragHover" },
+        anchor: "Continuous",
+        allowLoopback: true
+      });
+      
+      // Forçar repaint para garantir que o elemento está posicionado corretamente
+      instance.revalidate(div);
+    }, 0);
 
     div.onclick = (e) => {
       e.stopPropagation();
@@ -190,6 +270,13 @@ jsPlumb.ready(() => {
         updateStateAppearance(div, id);
         // Não limpar modo - permite marcar múltiplos estados
         
+      } else if (currentMode === 'delete') {
+        // Confirmar antes de apagar
+        if (confirm(`Tem certeza que deseja apagar o estado ${id}?`)) {
+          deleteState(id);
+        }
+        // Manter o modo delete ativo para apagar outros estados
+        
       } else if (currentMode === 'connect') {
         if (!selected) {
           selected = id;
@@ -204,25 +291,40 @@ jsPlumb.ready(() => {
             if (symbolExists) {
               alert(`Já existe uma transição com o símbolo "${label.trim()}" do estado ${selected}!`);
             } else {
-              const connection = instance.connect({
-                source: selected,
-                target: id,
-                overlays: [
-                  ["Arrow", { 
-                    location: 1, 
-                    width: 12, 
-                    length: 12 
-                  }],
-                  ["Label", { 
-                    label: label.trim(), 
-                    id: "label",
-                    cssClass: "connection-label"
-                  }]
-                ]
-              });
+              // Garantir que os elementos existem e estão posicionados
+              const sourceElement = document.getElementById(selected);
+              const targetElement = document.getElementById(id);
+              
+              if (sourceElement && targetElement) {
+                // Revalidar os elementos antes de criar a conexão
+                instance.revalidate(sourceElement);
+                instance.revalidate(targetElement);
+                
+                const connection = instance.connect({
+                  source: selected,
+                  target: id,
+                  overlays: [
+                    ["Arrow", { 
+                      location: 1, 
+                      width: 12, 
+                      length: 12 
+                    }],
+                    ["Label", { 
+                      label: label.trim(), 
+                      id: "label",
+                      cssClass: "connection-label"
+                    }]
+                  ]
+                });
 
-              if (!transitions[selected]) transitions[selected] = {};
-              transitions[selected][label.trim()] = id;
+                if (!transitions[selected]) transitions[selected] = {};
+                transitions[selected][label.trim()] = id;
+                
+                // Forçar repaint após criar a conexão
+                setTimeout(() => {
+                  instance.repaintEverything();
+                }, 50);
+              }
             }
           }
           
@@ -255,7 +357,14 @@ jsPlumb.ready(() => {
       const rect = canvas.getBoundingClientRect();
       const x = Math.max(25, Math.min(e.clientX - rect.left - 25, rect.width - 50));
       const y = Math.max(25, Math.min(e.clientY - rect.top - 25, rect.height - 50));
-      addState(x, y);
+      
+      // Adicionar estado e garantir que seja configurado corretamente
+      const newState = addState(x, y);
+      
+      // Forçar uma atualização do jsPlumb após adicionar o estado
+      setTimeout(() => {
+        instance.repaintEverything();
+      }, 100);
     }
   };
 
@@ -306,14 +415,41 @@ jsPlumb.ready(() => {
   if (clearBtn) {
     clearBtn.onclick = () => {
       if (confirm('Tem certeza que deseja limpar tudo?')) {
+        // Remover todos os elementos gerenciados pelo jsPlumb primeiro
+        const allStates = canvas.querySelectorAll('.state');
+        allStates.forEach(state => {
+          instance.removeAllEndpoints(state);
+          instance.detachAllConnections(state);
+        });
+        
+        // Limpar todas as conexões
         instance.deleteEveryConnection();
+        
+        // Limpar o canvas
         canvas.innerHTML = '';
+        
+        // Reset das variáveis
         stateCounter = 0;
         startState = null;
         finals.clear();
         for (let k in transitions) delete transitions[k];
+        
+        // Limpar modos ativos
         clearAllModes();
+        
+        // Forçar um repaint completo do jsPlumb
+        setTimeout(() => {
+          instance.repaintEverything();
+        }, 100);
       }
+    };
+  }
+
+  // Handler para o botão de deletar estados
+  const deleteStateBtn = document.getElementById('delete-state');
+  if (deleteStateBtn) {
+    deleteStateBtn.onclick = () => {
+      setMode('delete');
     };
   }
 
