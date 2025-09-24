@@ -540,6 +540,74 @@ jsPlumb.ready(() => {
     };
   }
 
+  // Função para simular autômato com self-loops (repetição 0 ou mais vezes)
+  function simulateAutomaton(input) {
+    if (!startState || finals.size === 0) {
+      return { accepted: false, path: [], error: !startState ? 'Defina um estado inicial!' : 'Defina pelo menos um estado final!' };
+    }
+    
+    // Função recursiva para explorar todos os caminhos possíveis
+    function exploreStates(currentState, inputIndex, currentPath) {
+      // Se chegou ao fim da string, verificar se está em estado final
+      if (inputIndex >= input.length) {
+        if (finals.has(currentState)) {
+          return { accepted: true, path: [...currentPath] };
+        }
+        return null;
+      }
+      
+      const currentChar = input[inputIndex];
+      
+      // Se não há transições deste estado, falha
+      if (!transitions[currentState]) {
+        return null;
+      }
+      
+      // Verificar se há transição para o caractere atual
+      if (transitions[currentState][currentChar]) {
+        const nextState = transitions[currentState][currentChar];
+        
+        // Se é self-loop (mesmo estado), pode consumir múltiplos caracteres iguais
+        if (nextState === currentState) {
+          // Tentar consumir 0 ou mais caracteres iguais consecutivos
+          let maxRepeat = 0;
+          for (let i = inputIndex; i < input.length && input[i] === currentChar; i++) {
+            maxRepeat++;
+          }
+          
+          // Tentar todas as possibilidades: 0, 1, 2, ..., maxRepeat repetições
+          for (let repeat = maxRepeat; repeat >= 0; repeat--) {
+            const newPath = [...currentPath];
+            
+            // Adicionar os self-loops no caminho
+            for (let i = 0; i < repeat; i++) {
+              newPath.push(currentState);
+            }
+            
+            const result = exploreStates(currentState, inputIndex + repeat, newPath);
+            if (result && result.accepted) {
+              return result;
+            }
+          }
+          
+          return null;
+        } else {
+          // Transição normal para outro estado
+          const newPath = [...currentPath, nextState];
+          return exploreStates(nextState, inputIndex + 1, newPath);
+        }
+      }
+      
+      // Tentar continuar no mesmo estado se houver self-loops de outros símbolos
+      // (isso permite pular caracteres se houver epsilon-transições implícitas)
+      
+      return null;
+    }
+    
+    const result = exploreStates(startState, 0, [startState]);
+    return result || { accepted: false, path: [startState], error: null };
+  }
+
   const simulateBtn = document.getElementById('simulate');
   if (simulateBtn) {
     simulateBtn.onclick = () => {
@@ -550,36 +618,18 @@ jsPlumb.ready(() => {
       
       const input = inputField.value;
       
-      if (!startState) {
-        resultField.textContent = 'Erro: Defina um estado inicial!';
+      const result = simulateAutomaton(input);
+      
+      if (result.error) {
+        resultField.textContent = `Erro: ${result.error}`;
         return;
       }
       
-      if (finals.size === 0) {
-        resultField.textContent = 'Erro: Defina pelo menos um estado final!';
-        return;
-      }
-      
-      let current = startState;
-      let ok = true;
-      let path = [current];
-      
-      for (let ch of input) {
-        if (transitions[current] && transitions[current][ch]) {
-          current = transitions[current][ch];
-          path.push(current);
-        } else {
-          ok = false;
-          break;
-        }
-      }
-      
-      const res = ok && finals.has(current);
-      const pathStr = path.join(' → ');
+      const pathStr = result.path.join(' → ');
       const finalStates = Array.from(finals).join(', ');
       
       resultField.textContent = 
-        `Resultado: ${res ? 'ACEITA' : 'REJEITA'}\n` +
+        `Resultado: ${result.accepted ? 'ACEITA' : 'REJEITA'}\n` +
         `Caminho: ${pathStr}\n` +
         `Estado inicial: ${startState}\n` +
         `Estados finais: {${finalStates}}\n` +
