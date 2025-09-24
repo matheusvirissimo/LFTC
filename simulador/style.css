@@ -75,6 +75,22 @@ button.active:hover {
     background: #e55a2b;
 }
 
+button.delete {
+    background: #dc2626;
+}
+
+button.delete:hover {
+    background: #b91c1c;
+}
+
+button.delete.active {
+    background: #991b1b;
+}
+
+button.delete.active:hover {
+    background: #7f1d1d;
+}
+
 input[type=text] {
     padding: 6px;
     border-radius: 6px;
@@ -256,6 +272,12 @@ h3 {
     background: #fef3c7;
     color: #92400e;
     border: 1px solid #fbbf24;
+}
+
+.mode-indicator.delete-mode {
+    background: #fef2f2;
+    color: #dc2626;
+    border: 1px solid #f87171;
 }
 
 /* Responsividade */
