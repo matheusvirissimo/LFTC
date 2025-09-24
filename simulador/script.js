@@ -95,6 +95,9 @@ jsPlumb.ready(() => {
       if (controls) controls.appendChild(indicator);
     }
     
+    // Limpar todas as classes específicas de modo
+    indicator.classList.remove('active', 'delete-mode');
+    
     switch(currentMode) {
       case 'add':
         indicator.textContent = 'Modo: Adicionar Estados - Clique no canvas';
@@ -114,7 +117,7 @@ jsPlumb.ready(() => {
         break;
       case 'delete':
         indicator.textContent = 'Modo: Apagar Estados - Clique nos estados para remover';
-        indicator.classList.add('active');
+        indicator.classList.add('active', 'delete-mode');
         break;
       default:
         indicator.textContent = 'Clique em um botão para começar';
@@ -124,6 +127,8 @@ jsPlumb.ready(() => {
 
   // Função para atualizar a aparência de um estado
   function updateStateAppearance(stateElement, stateId) {
+    if (!stateElement) return;
+    
     // Remover todas as classes de estado
     stateElement.classList.remove('initial', 'final', 'selected');
     
@@ -173,12 +178,18 @@ jsPlumb.ready(() => {
     const element = document.getElementById(stateId);
     if (!element) return;
 
-    // Remover todas as conexões relacionadas ao estado
-    instance.removeAllEndpoints(element);
-    instance.detachAllConnections(element);
+    console.log('Deletando estado:', stateId); // Debug
 
-    // Remover o elemento do DOM
-    element.remove();
+    // Primeiro, remover todas as conexões do jsPlumb
+    const connections = instance.getConnections();
+    connections.forEach(conn => {
+      if (conn.sourceId === stateId || conn.targetId === stateId) {
+        instance.deleteConnection(conn);
+      }
+    });
+
+    // Remover endpoints
+    instance.removeAllEndpoints(element);
 
     // Limpar das variáveis de controle
     if (startState === stateId) {
@@ -200,10 +211,13 @@ jsPlumb.ready(() => {
       }
     });
 
+    // Remover o elemento do DOM por último
+    element.remove();
+
     // Forçar repaint do jsPlumb
     setTimeout(() => {
       instance.repaintEverything();
-    }, 50);
+    }, 100);
   }
 
   function addState(x = 50, y = 50) {
@@ -249,14 +263,14 @@ jsPlumb.ready(() => {
       e.stopPropagation();
       
       if (currentMode === 'start') {
-        // Remover estado inicial anterior
-        if (startState) {
-          const oldStart = document.getElementById(startState);
-          if (oldStart) updateStateAppearance(oldStart, startState);
-        }
+        // Remover estado inicial anterior de TODOS os estados
+        document.querySelectorAll('.state').forEach(state => {
+          state.classList.remove('initial');
+        });
         
         // Definir novo estado inicial
         startState = id;
+        div.classList.add('initial');
         updateStateAppearance(div, id);
         clearAllModes();
         
@@ -271,10 +285,9 @@ jsPlumb.ready(() => {
         // Não limpar modo - permite marcar múltiplos estados
         
       } else if (currentMode === 'delete') {
-        // Confirmar antes de apagar
-        if (confirm(`Tem certeza que deseja apagar o estado ${id}?`)) {
-          deleteState(id);
-        }
+        // Apagar estado diretamente sem confirmação
+        console.log('Modo delete ativo, deletando estado:', id); // Debug
+        deleteState(id);
         // Manter o modo delete ativo para apagar outros estados
         
       } else if (currentMode === 'connect') {
@@ -449,7 +462,14 @@ jsPlumb.ready(() => {
   const deleteStateBtn = document.getElementById('delete-state');
   if (deleteStateBtn) {
     deleteStateBtn.onclick = () => {
-      setMode('delete');
+      if (currentMode === 'delete') {
+        clearAllModes();
+      } else {
+        clearAllModes();
+        currentMode = 'delete';
+        deleteStateBtn.classList.add('active');
+        updateModeIndicator();
+      }
     };
   }
 
