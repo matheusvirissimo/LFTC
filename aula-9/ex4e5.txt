@@ -1,0 +1,24 @@
+4.
+G = ({S,A,B},{a,b}, P, S), 
+cujo P ={
+ S--> AB
+ A --> aA | aBB
+ B --> Bb | b
+}
+
+<S> ::= <A><B>
+<A> ::= a+<B>
+<B> ::= b+
+
+<S> ::= a+b+
+"a^n seguido de b^n | n >= 1"
+
+5.
+<cad> --> ab | a <meio>b
+<meio> --> a<meio> | <meio>b | a | b
+
+é ambigua, porque a cadeia "aabb" pode ser derivada de duas formas distintas:
+
+<meio> → <meio>b → a → aabb
+
+<meio> → a<meio> → b → aabb

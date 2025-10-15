@@ -1,0 +1,17 @@
+7.
+a)
+G = ( {S}, {a, b}, {
+S → ab;
+S → ba; 
+S → SS; 
+S → aSb; 
+S → bSa
+}, S).
+
+L(G) = {ab, ba, abab, abba, baba, baba, aabb, abab, baba, bbaa}
+
+b)
+
+aababbba
+
+SS -> (aSb)S -> a(aSb)bS -> aababbS -> aababbba
